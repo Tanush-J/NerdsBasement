@@ -1,29 +1,30 @@
 import { CARD_STORE, Card } from "./Dataset";
 import { WebSocket } from "ws";
 import { CHAT_BROADCAST, GUESS_RESPONSE, INIT_GAME } from "./messages";
+import { User } from "./User";
 
 interface ChatMessage {
-    id: Number,
-    player: WebSocket,
-    message: String
+    id: number,
+    player: User,
+    message: string
 }
 
 interface Guess {
-    id: Number,
-    player: WebSocket,
-    guess: String,
+    id: number,
+    guesser: User,
+    guessed: User,
 }
 
 export class Game {
-    public players: WebSocket[];
+    public players: User[];
     public currentCard: Card;
     public chatHistory: ChatMessage[];
-    public chameleon: WebSocket | null;
+    public chameleon: User | null;
     public isStarted: boolean;
     private guesses: Guess[];
     private startTime: Date;
 
-    constructor(players: WebSocket[]) {
+    constructor(players: User[]) {
         const chameleonIndex = Math.floor(Math.random() * players.length);
         const cardIndex = Math.floor(Math.random() * CARD_STORE.length);
         const wordIndex = Math.floor(Math.random() * CARD_STORE[cardIndex].wordList.length);
@@ -41,35 +42,40 @@ export class Game {
                 wordIndex: (index === chameleonIndex? -1 :wordIndex),
                 isChameleon: index === chameleonIndex
             }
-            player.send(JSON.stringify({
+            player.socket.send(JSON.stringify({
                 type: INIT_GAME,
                 payload: Payload
             }))
         })
     }
 
-    chatMessage(socket: WebSocket, chat: String){
+    chatMessage(player: User, chat: string){
         const payload = {
-            player: socket,
+            sender: player.getName(),
             message: chat
         }
-        this.chatHistory.push({ id: this.chatHistory.length+1, player: socket, message: chat });
+        this.chatHistory.push({ id: this.chatHistory.length+1, player, message: chat });
         this.broadcastHandler(CHAT_BROADCAST, payload);
     }
 
-    guessHandler(socket: WebSocket, guess: string){ //need to refactor must guess should be a socket or playerId
+    guessHandler(player: User, guessedId: number){ //need to refactor must guess should be a socket or playerId
+        const guessed: User | undefined= this.players.find(player => player.getId() === guessedId);
         const remainingToGuess = this.players.length - this.guesses.length;
         const payload = { 
-            playerGuessed: socket, 
+            playerGuessed: player.getName(),
             remainingToGuess
         }
-        this.guesses.push({ id: this.guesses.length+1, player: socket, guess });
+        if(guessed){
+            this.guesses.push({ id: this.guesses.length+1, guesser: player, guessed });
+        } else {
+            //invaild guess logic here - player not found
+        }
         this.broadcastHandler(GUESS_RESPONSE, payload);
     }
 
-    private broadcastHandler(type: String, payload: Object){
+    private broadcastHandler(type: string, payload: object){
         this.players.forEach(player => {
-            player.send(JSON.stringify({
+            player.socket.send(JSON.stringify({
                 type,
                 payload
             }))

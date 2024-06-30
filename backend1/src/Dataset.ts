@@ -1,7 +1,7 @@
 export interface Card {
-    id: Number,
-    category: String,
-    wordList: String[]
+    id: number,
+    category: string,
+    wordList: string[]
 }
 
 export const CARD_STORE = [
